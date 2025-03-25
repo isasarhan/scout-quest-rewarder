@@ -1,17 +1,21 @@
 
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Award, User, Home, Compass, ChevronDown } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, Award, User, Home, Compass, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { currentUser } from '@/data/achievements';
-import { ranks } from '@/data/ranks';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSupabase } from '@/hooks/use-supabase';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [scoutData, setScoutData] = useState<any>(null);
   const location = useLocation();
   const isMobile = useIsMobile();
-  const [scrolled, setScrolled] = useState(false);
+  const { user, signOut } = useAuth();
+  const { getScoutProfile } = useSupabase();
+  const navigate = useNavigate();
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
@@ -29,6 +33,24 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    const loadScoutData = async () => {
+      if (user) {
+        const profile = await getScoutProfile();
+        if (profile) {
+          setScoutData(profile);
+        }
+      }
+    };
+
+    loadScoutData();
+  }, [user]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/sign-in');
+  };
+
   const navItems = [
     { path: '/', name: 'Home', icon: Home },
     { path: '/achievements', name: 'Achievements', icon: Compass },
@@ -36,7 +58,7 @@ const Navbar = () => {
     { path: '/profile', name: 'Profile', icon: User },
   ];
 
-  const userRank = ranks.find(rank => rank.id === currentUser.rank) || ranks[0];
+  const userRank = scoutData?.rank || { name: 'Scout', color: 'bg-scout-sky' };
 
   return (
     <header 
@@ -86,13 +108,25 @@ const Navbar = () => {
             ))}
           </nav>
           
-          <div className="hidden md:flex items-center justify-end md:flex-1 lg:w-0">
-            <div className="flex items-center space-x-2">
-              <span className={`${userRank.color} h-2 w-2 rounded-full animate-pulse`}></span>
-              <span className="text-sm font-medium">{userRank.name}</span>
-              <span className="text-sm text-muted-foreground">{currentUser.points} pts</span>
+          {user && scoutData && (
+            <div className="hidden md:flex items-center justify-end md:flex-1 lg:w-0 space-x-4">
+              <div className="flex items-center space-x-2">
+                <span className={`${userRank.color} h-2 w-2 rounded-full animate-pulse`}></span>
+                <span className="text-sm font-medium">{userRank.name}</span>
+                <span className="text-sm text-muted-foreground">{scoutData.points} pts</span>
+              </div>
+
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleSignOut}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Sign out
+              </Button>
             </div>
-          </div>
+          )}
         </div>
       </div>
       
@@ -115,13 +149,26 @@ const Navbar = () => {
                 <span>{item.name}</span>
               </Link>
             ))}
-            <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-2">
-                <span className={`${userRank.color} h-2 w-2 rounded-full animate-pulse`}></span>
-                <span className="text-sm font-medium">{userRank.name}</span>
-              </div>
-              <span className="text-sm text-muted-foreground">{currentUser.points} pts</span>
-            </div>
+
+            {user && scoutData && (
+              <>
+                <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center space-x-2">
+                    <span className={`${userRank.color} h-2 w-2 rounded-full animate-pulse`}></span>
+                    <span className="text-sm font-medium">{userRank.name}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{scoutData.points} pts</span>
+                </div>
+
+                <button
+                  className="flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium w-full text-left text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span>Sign out</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

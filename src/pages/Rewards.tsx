@@ -1,4 +1,5 @@
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Lock, Check, ArrowRight, Medal, Trophy, Award } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -7,17 +8,72 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import AnimatedTransition from '@/components/AnimatedTransition';
 import Navbar from '@/components/Navbar';
-import { rewards, getUnlockedRewards, getNextReward, calculateRewardProgress } from '@/data/rewards';
-import { currentUser } from '@/data/achievements';
-import { ranks, getCurrentRank } from '@/data/ranks';
+import { useSupabase } from '@/hooks/use-supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Define our reward type to match the database
+interface Reward {
+  id: string;
+  name: string;
+  description: string;
+  points_required: number;
+  image: string;
+  unlocked?: boolean;
+}
 
 const Rewards = () => {
-  const unlockedRewards = getUnlockedRewards(currentUser.points);
-  const nextReward = getNextReward(currentUser.points);
-  const currentRank = getCurrentRank(currentUser.points);
+  const { getScoutProfile, getScoutRewards, loading: dataLoading } = useSupabase();
+  const { user } = useAuth();
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [scoutPoints, setScoutPoints] = useState(0);
+  const [currentRank, setCurrentRank] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadData = async () => {
+      if (user) {
+        try {
+          // Get scout profile including rank info
+          const profile = await getScoutProfile();
+          if (profile) {
+            setScoutPoints(profile.points);
+            setCurrentRank(profile.rank);
+          }
+          
+          // Get rewards with unlocked status
+          const rewardsData = await getScoutRewards();
+          setRewards(rewardsData);
+        } catch (error) {
+          console.error('Error loading data:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadData();
+  }, [user]);
+  
+  const nextReward = rewards
+    .filter(reward => !reward.unlocked)
+    .sort((a, b) => a.points_required - b.points_required)[0];
+  
+  const calculateProgress = (points: number, reward: Reward): number => {
+    // Find the previous reward threshold
+    const previousReward = [...rewards]
+      .sort((a, b) => b.points_required - a.points_required)
+      .find(r => r.points_required < reward.points_required);
+    
+    const previousThreshold = previousReward ? previousReward.points_required : 0;
+    const pointsNeeded = reward.points_required - previousThreshold;
+    const pointsEarned = Math.max(0, points - previousThreshold);
+    
+    return Math.min(100, Math.round((pointsEarned / pointsNeeded) * 100));
+  };
   
   const progressToNextReward = nextReward 
-    ? calculateRewardProgress(currentUser.points, nextReward) 
+    ? calculateProgress(scoutPoints, nextReward) 
     : 100;
   
   const rewardContainerVariants = {
@@ -51,6 +107,26 @@ const Rewards = () => {
     if (name.includes("Ultimate")) return Trophy;
     return Award;
   };
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <div className="page-container">
+          <div className="mb-8">
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-full max-w-md" />
+          </div>
+          <Skeleton className="h-72 w-full mb-12" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-64 w-full" />
+            ))}
+          </div>
+        </div>
+      </>
+    );
+  }
   
   return (
     <>
@@ -70,16 +146,18 @@ const Rewards = () => {
               <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="p-8 flex flex-col justify-center">
                   <div className="mb-4">
-                    <Badge variant="outline" className={`${currentRank.color} text-white mb-2`}>
-                      {currentRank.name} Rank
-                    </Badge>
+                    {currentRank && (
+                      <Badge variant="outline" className={`${currentRank.color} text-white mb-2`}>
+                        {currentRank.name} Rank
+                      </Badge>
+                    )}
                     <h2 className="text-2xl sm:text-3xl font-bold mb-1">
-                      {currentUser.points} Achievement Points
+                      {scoutPoints} Achievement Points
                     </h2>
                     
                     {nextReward && (
                       <p className="text-muted-foreground">
-                        {nextReward.pointsRequired - currentUser.points} more points until {nextReward.name}
+                        {nextReward.points_required - scoutPoints} more points until {nextReward.name}
                       </p>
                     )}
                     
@@ -145,11 +223,11 @@ const Rewards = () => {
             animate="show"
           >
             {rewards.map((reward) => {
-              const isUnlocked = currentUser.points >= reward.pointsRequired;
+              const isUnlocked = reward.unlocked;
               const RewardIcon = getRewardIcon(reward.name);
               const progress = isUnlocked 
                 ? 100 
-                : calculateRewardProgress(currentUser.points, reward);
+                : calculateProgress(scoutPoints, reward);
               
               return (
                 <motion.div 
@@ -201,7 +279,7 @@ const Rewards = () => {
                         <div className="flex justify-between items-start mb-2">
                           <h3 className="font-bold text-lg">{reward.name}</h3>
                           <Badge variant={isUnlocked ? "default" : "outline"}>
-                            {reward.pointsRequired} pts
+                            {reward.points_required} pts
                           </Badge>
                         </div>
                         
@@ -220,7 +298,7 @@ const Rewards = () => {
                               className="h-1.5"
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                              {reward.pointsRequired - currentUser.points} points needed
+                              {reward.points_required - scoutPoints} points needed
                             </p>
                           </div>
                         )}
