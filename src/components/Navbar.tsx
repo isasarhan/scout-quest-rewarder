@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Award, User, Home, Compass, LogOut } from 'lucide-react';
+import { Menu, X, Award, User, Home, Compass, LogOut, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,7 @@ const Navbar = () => {
   const [scoutData, setScoutData] = useState<any>(null);
   const location = useLocation();
   const isMobile = useIsMobile();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const { getScoutProfile } = useSupabase();
   const navigate = useNavigate();
 
@@ -51,12 +51,18 @@ const Navbar = () => {
     navigate('/sign-in');
   };
 
+  // Basic nav items for all users
   const navItems = [
     { path: '/', name: 'Home', icon: Home },
     { path: '/achievements', name: 'Achievements', icon: Compass },
     { path: '/rewards', name: 'Rewards', icon: Award },
     { path: '/profile', name: 'Profile', icon: User },
   ];
+  
+  // Add admin link if user is admin
+  if (isAdmin) {
+    navItems.push({ path: '/admin', name: 'Admin', icon: Shield });
+  }
 
   const userRank = scoutData?.rank || { name: 'Scout', color: 'bg-scout-sky' };
 

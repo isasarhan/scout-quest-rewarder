@@ -12,7 +12,9 @@ import Profile from "./pages/Profile";
 import Rewards from "./pages/Rewards";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import Admin from "./pages/Admin";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +43,11 @@ const App = () => (
               <ProtectedRoute>
                 <Rewards />
               </ProtectedRoute>
+            } />
+            <Route path="/admin" element={
+              <AdminRoute>
+                <Admin />
+              </AdminRoute>
             } />
             <Route path="*" element={<NotFound />} />
           </Routes>

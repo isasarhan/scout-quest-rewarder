@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -52,6 +51,7 @@ export type Database = {
           name: string;
           rank_id: number;
           points: number;
+          is_admin: boolean;
           created_at: string;
         };
         Insert: {
@@ -60,6 +60,7 @@ export type Database = {
           name: string;
           rank_id?: number;
           points?: number;
+          is_admin?: boolean;
           created_at?: string;
         };
         Update: {
@@ -68,6 +69,7 @@ export type Database = {
           name?: string;
           rank_id?: number;
           points?: number;
+          is_admin?: boolean;
           created_at?: string;
         };
       };
@@ -151,7 +153,13 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      increment_points: {
+        Args: {
+          row_id: string;
+          points_to_add: number;
+        };
+        Returns: number;
+      };
     };
   };
 };
