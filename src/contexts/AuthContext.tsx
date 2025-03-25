@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -21,7 +20,8 @@ const MOCK_USERS = [
 ];
 
 // Check if we're using the mock environment
-const IS_MOCK_ENV = supabase.supabaseUrl === 'https://your-supabase-project.supabase.co';
+const IS_MOCK_ENV = import.meta.env.VITE_SUPABASE_URL === undefined || 
+                   import.meta.env.VITE_SUPABASE_URL === 'https://your-supabase-project.supabase.co';
 
 interface AuthContextType {
   session: Session | null;

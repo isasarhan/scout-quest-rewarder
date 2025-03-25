@@ -1,16 +1,55 @@
 
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, X, Award, User, Shield, Sparkles } from 'lucide-react';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import { 
+  Check, 
+  X, 
+  Award, 
+  User, 
+  Shield, 
+  Sparkles, 
+  Plus, 
+  MoreVertical, 
+  Pencil, 
+  Trash2,
+  Trophy
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Navbar from '@/components/Navbar';
 import { supabase } from '@/lib/supabase';
+import ScoutForm from '@/components/admin/ScoutForm';
+import AchievementForm from '@/components/admin/AchievementForm';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const AdminDashboard = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // State for managing CRUD operations
+  const [showScoutForm, setShowScoutForm] = useState(false);
+  const [showAchievementForm, setShowAchievementForm] = useState(false);
+  const [selectedScout, setSelectedScout] = useState<any>(null);
+  const [selectedAchievement, setSelectedAchievement] = useState<any>(null);
   
   // Fetch pending achievement applications
   const { data: pendingAchievements, isLoading: loadingAchievements, refetch: refetchAchievements } = useQuery({
@@ -34,7 +73,7 @@ const AdminDashboard = () => {
   });
   
   // Fetch all scouts
-  const { data: scouts, isLoading: loadingScouts } = useQuery({
+  const { data: scouts, isLoading: loadingScouts, refetch: refetchScouts } = useQuery({
     queryKey: ['scoutsList'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -44,8 +83,24 @@ const AdminDashboard = () => {
           name,
           points,
           user_id,
+          is_admin,
           rank:ranks(id, name, color)
         `)
+        .order('name');
+        
+      if (error) throw error;
+      return data;
+    }
+  });
+  
+  // Fetch all achievements
+  const { data: achievements, isLoading: loadingAllAchievements, refetch: refetchAllAchievements } = useQuery({
+    queryKey: ['achievementsList'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('achievements')
+        .select('*')
+        .order('category')
         .order('name');
         
       if (error) throw error;
@@ -79,6 +134,7 @@ const AdminDashboard = () => {
       
       // Refresh the data
       refetchAchievements();
+      refetchScouts();
       
       toast({
         title: "Achievement approved",
@@ -119,6 +175,66 @@ const AdminDashboard = () => {
     }
   };
   
+  // Delete a scout
+  const handleDeleteScout = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('scouts')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      refetchScouts();
+      
+      toast({
+        title: "Scout deleted",
+        description: "The scout has been removed from the system.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting scout",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Delete an achievement
+  const handleDeleteAchievement = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('achievements')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      refetchAllAchievements();
+      
+      toast({
+        title: "Achievement deleted",
+        description: "The achievement has been removed from the system.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting achievement",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Handle form success
+  const handleFormSuccess = () => {
+    setShowScoutForm(false);
+    setShowAchievementForm(false);
+    setSelectedScout(null);
+    setSelectedAchievement(null);
+    refetchScouts();
+    refetchAllAchievements();
+  };
+  
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar />
@@ -145,9 +261,9 @@ const AdminDashboard = () => {
               <User className="h-4 w-4" />
               Scout Management
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Analytics
+            <TabsTrigger value="achievements" className="flex items-center gap-2">
+              <Trophy className="h-4 w-4" />
+              Achievement Management
             </TabsTrigger>
           </TabsList>
           
@@ -218,50 +334,131 @@ const AdminDashboard = () => {
           
           <TabsContent value="scouts">
             <Card>
-              <CardHeader>
-                <CardTitle>Scout Management</CardTitle>
-                <CardDescription>
-                  View and manage all registered scouts
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Scout Management</CardTitle>
+                  <CardDescription>
+                    View and manage all registered scouts
+                  </CardDescription>
+                </div>
+                <Dialog open={showScoutForm} onOpenChange={setShowScoutForm}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      onClick={() => {
+                        setSelectedScout(null);
+                        setShowScoutForm(true);
+                      }}
+                      className="bg-scout-pine hover:bg-scout-pine/90 text-white"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Scout
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <ScoutForm 
+                      scout={selectedScout}
+                      onSuccess={handleFormSuccess}
+                      onCancel={() => setShowScoutForm(false)}
+                    />
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 {loadingScouts ? (
                   <div className="text-center py-8">Loading scouts...</div>
                 ) : scouts && scouts.length > 0 ? (
                   <div className="relative overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm text-left">
-                      <thead className="text-xs uppercase bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                          <th scope="col" className="px-6 py-3">Name</th>
-                          <th scope="col" className="px-6 py-3">Rank</th>
-                          <th scope="col" className="px-6 py-3">Points</th>
-                          <th scope="col" className="px-6 py-3">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Rank</TableHead>
+                          <TableHead>Points</TableHead>
+                          <TableHead>Admin</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {scouts.map((scout: any) => (
-                          <tr key={scout.id} className="bg-white border-b dark:bg-gray-900 dark:border-gray-700">
-                            <td className="px-6 py-4 font-medium">{scout.name}</td>
-                            <td className="px-6 py-4">
+                          <TableRow key={scout.id}>
+                            <TableCell className="font-medium">{scout.name}</TableCell>
+                            <TableCell>
                               <div className="flex items-center">
                                 <span className={`${scout.rank?.color} h-2 w-2 rounded-full mr-2`}></span>
                                 {scout.rank?.name}
                               </div>
-                            </td>
-                            <td className="px-6 py-4">{scout.points}</td>
-                            <td className="px-6 py-4">
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                className="text-scout-moss hover:text-scout-pine hover:bg-scout-pine/10"
-                              >
-                                View Details
-                              </Button>
-                            </td>
-                          </tr>
+                            </TableCell>
+                            <TableCell>{scout.points}</TableCell>
+                            <TableCell>
+                              {scout.is_admin ? (
+                                <Badge className="bg-scout-pine">Admin</Badge>
+                              ) : (
+                                <Badge variant="outline">User</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => {
+                                        e.preventDefault();
+                                        setSelectedScout(scout);
+                                        setShowScoutForm(true);
+                                      }}>
+                                        <Pencil className="h-4 w-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-md">
+                                      <ScoutForm 
+                                        scout={selectedScout}
+                                        onSuccess={handleFormSuccess}
+                                        onCancel={() => setShowScoutForm(false)}
+                                      />
+                                    </DialogContent>
+                                  </Dialog>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently delete the scout and all associated achievement records.
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-red-500 hover:bg-red-600 text-white"
+                                          onClick={() => handleDeleteScout(scout.id)}
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
@@ -272,23 +469,130 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
           
-          <TabsContent value="analytics">
+          <TabsContent value="achievements">
             <Card>
-              <CardHeader>
-                <CardTitle>Analytics Dashboard</CardTitle>
-                <CardDescription>
-                  View statistics and insights about scout achievements and progress
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-96 flex items-center justify-center">
-                <div className="text-center">
-                  <Sparkles className="h-12 w-12 text-scout-moss mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">Analytics Coming Soon</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    This section will provide detailed statistics and insights on scout achievements, 
-                    progress, and engagement metrics.
-                  </p>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Achievement Management</CardTitle>
+                  <CardDescription>
+                    Create and manage achievement badges that scouts can earn
+                  </CardDescription>
                 </div>
+                <Dialog open={showAchievementForm} onOpenChange={setShowAchievementForm}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      onClick={() => {
+                        setSelectedAchievement(null);
+                        setShowAchievementForm(true);
+                      }}
+                      className="bg-scout-pine hover:bg-scout-pine/90 text-white"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Achievement
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <AchievementForm 
+                      achievement={selectedAchievement}
+                      onSuccess={handleFormSuccess}
+                      onCancel={() => setShowAchievementForm(false)}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {loadingAllAchievements ? (
+                  <div className="text-center py-8">Loading achievements...</div>
+                ) : achievements && achievements.length > 0 ? (
+                  <div className="relative overflow-x-auto rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Points</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {achievements.map((achievement: any) => (
+                          <TableRow key={achievement.id}>
+                            <TableCell className="font-medium">{achievement.name}</TableCell>
+                            <TableCell>
+                              <span className="text-xs bg-scout-moss/10 text-scout-moss px-2 py-1 rounded-full">
+                                {achievement.category}
+                              </span>
+                            </TableCell>
+                            <TableCell>{achievement.points}</TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="h-4 w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => {
+                                        e.preventDefault();
+                                        setSelectedAchievement(achievement);
+                                        setShowAchievementForm(true);
+                                      }}>
+                                        <Pencil className="h-4 w-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-md">
+                                      <AchievementForm 
+                                        achievement={selectedAchievement}
+                                        onSuccess={handleFormSuccess}
+                                        onCancel={() => setShowAchievementForm(false)}
+                                      />
+                                    </DialogContent>
+                                  </Dialog>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-500">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently delete this achievement.
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-red-500 hover:bg-red-600 text-white"
+                                          onClick={() => handleDeleteAchievement(achievement.id)}
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No achievements found
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
