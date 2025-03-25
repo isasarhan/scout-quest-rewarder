@@ -1,7 +1,27 @@
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+
+// Mock users for development
+const MOCK_USERS = [
+  {
+    email: 'user@example.com',
+    password: 'password123',
+    name: 'Regular User',
+    isAdmin: false
+  },
+  {
+    email: 'admin@example.com',
+    password: 'admin123',
+    name: 'Admin User',
+    isAdmin: true
+  }
+];
+
+// Check if we're using the mock environment
+const IS_MOCK_ENV = supabase.supabaseUrl === 'https://your-supabase-project.supabase.co';
 
 interface AuthContextType {
   session: Session | null;
@@ -23,6 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (IS_MOCK_ENV) {
+      // In mock mode, just initialize with no session
+      setLoading(false);
+      return;
+    }
+
+    // For real Supabase connection
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -78,6 +105,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
+      
+      // Handle mock authentication in development
+      if (IS_MOCK_ENV) {
+        const mockUser = MOCK_USERS.find(u => u.email === email && u.password === password);
+        
+        if (!mockUser) {
+          throw new Error('Invalid email or password');
+        }
+        
+        // Create a mock user and session
+        const mockUserObj = {
+          id: `mock-${Date.now()}`,
+          email: mockUser.email,
+          user_metadata: { full_name: mockUser.name }
+        } as unknown as User;
+        
+        setUser(mockUserObj);
+        setIsAdmin(mockUser.isAdmin);
+        
+        toast({
+          title: "Development Mode",
+          description: `Signed in as ${mockUser.name} (${mockUser.isAdmin ? 'Admin' : 'User'})`,
+        });
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Real Supabase authentication
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
@@ -103,6 +159,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       
+      // Handle mock signup in development
+      if (IS_MOCK_ENV) {
+        // Check if user already exists
+        if (MOCK_USERS.some(u => u.email === email)) {
+          throw new Error('User already exists');
+        }
+        
+        // Create a mock user
+        const mockUserObj = {
+          id: `mock-${Date.now()}`,
+          email: email,
+          user_metadata: { full_name: name }
+        } as unknown as User;
+        
+        setUser(mockUserObj);
+        setIsAdmin(false);
+        
+        toast({
+          title: "Development Mode",
+          description: `Created and signed in as ${name}`,
+        });
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Real Supabase signup
       // Create the user account
       const { data: authData, error: authError } = await supabase.auth.signUp({ 
         email, 
@@ -150,6 +233,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       setLoading(true);
+      
+      // Handle mock signout in development
+      if (IS_MOCK_ENV) {
+        setUser(null);
+        setIsAdmin(false);
+        
+        toast({
+          title: "Development Mode",
+          description: "You've been signed out",
+        });
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Real Supabase signout
       await supabase.auth.signOut();
       toast({
         title: "Signed out",
