@@ -50,6 +50,58 @@ export const useSupabase = () => {
     }
   };
 
+  // Fetch all scout profiles (for admin use)
+  const getAllScoutProfiles = async () => {
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('scouts')
+        .select(`
+          *,
+          rank:ranks(*)
+        `);
+      
+      if (error) throw error;
+      
+      return data as unknown as ScoutWithData[];
+    } catch (error: any) {
+      toast({
+        title: "Error fetching scout profiles",
+        description: error.message,
+        variant: "destructive"
+      });
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete a scout profile (for admin use)
+  const deleteScoutProfile = async (scoutId: string) => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase
+        .from('scouts')
+        .delete()
+        .eq('id', scoutId);
+      
+      if (error) throw error;
+      
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Error deleting scout profile",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch all achievements
   const getAchievements = async () => {
     try {
@@ -70,6 +122,36 @@ export const useSupabase = () => {
         variant: "destructive"
       });
       return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // For admin use - alias for getAchievements
+  const getAllAchievements = async () => {
+    return getAchievements();
+  };
+
+  // Delete an achievement (for admin use)
+  const deleteAchievement = async (achievementId: string) => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase
+        .from('achievements')
+        .delete()
+        .eq('id', achievementId);
+      
+      if (error) throw error;
+      
+      return true;
+    } catch (error: any) {
+      toast({
+        title: "Error deleting achievement",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -217,10 +299,14 @@ export const useSupabase = () => {
   return {
     loading,
     getScoutProfile,
+    getAllScoutProfiles,
     getAchievements,
+    getAllAchievements,
     getScoutAchievements,
     applyForAchievement,
     getRewards,
     getScoutRewards,
+    deleteScoutProfile,
+    deleteAchievement,
   };
 };

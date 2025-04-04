@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { PlusCircle, Search, Edit, Trash2, Award, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,7 +36,7 @@ const Admin = () => {
   const [isAchievementFormOpen, setIsAchievementFormOpen] = useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ type: string; id: string | null }>({ type: '', id: null });
-  const { getAllScoutProfiles, getAllAchievements, deleteScoutProfile, deleteAchievement } = useSupabase();
+  const { loading, getAllScoutProfiles, getAllAchievements, deleteScoutProfile, deleteAchievement } = useSupabase();
   const { isAdmin } = useAuth();
 
   useEffect(() => {
