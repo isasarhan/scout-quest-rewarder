@@ -13,6 +13,7 @@ import Rewards from "./pages/Rewards";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import Admin from "./pages/Admin";
+import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 
@@ -47,6 +48,11 @@ const App = () => (
             <Route path="/admin" element={
               <AdminRoute>
                 <Admin />
+              </AdminRoute>
+            } />
+            <Route path="/dashboard" element={
+              <AdminRoute>
+                <Dashboard />
               </AdminRoute>
             } />
             <Route path="*" element={<NotFound />} />
